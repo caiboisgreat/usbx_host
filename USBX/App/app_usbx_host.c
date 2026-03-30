@@ -59,6 +59,13 @@
 static ULONG ux_demo_memory_buffer[UX_DEMO_MEMORY_SIZE / sizeof(ULONG)];
 static ULONG error_counter;
 static volatile APP_USBX_DIAG_SNAPSHOT usbx_diag_snapshot;
+
+UX_HOST_CLASS_HID_MOUSE  *hid_mouse_instance = UX_NULL;
+TX_EVENT_FLAGS_GROUP      mouse_event_flags;
+
+static TX_THREAD          mouse_thread;
+#define MOUSE_THREAD_STACK_SIZE  1024U
+static UCHAR              mouse_thread_stack[MOUSE_THREAD_STACK_SIZE];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -73,6 +80,7 @@ static VOID usbx_log_device_info(UX_DEVICE *device);
 static const char *usbx_speed_to_string(ULONG speed);
 static UINT usbx_get_device_string(UX_DEVICE *device, ULONG string_index, char *buffer, size_t buffer_size);
 static VOID usbx_diag_record_change_event(ULONG event);
+extern void hid_mouse_thread_entry(ULONG arg);
 /* USER CODE END PFP */
 /**
   * @brief  Application USBX Host Initialization.
@@ -157,20 +165,63 @@ UINT MX_USBX_Host_Init(VOID *memory_ptr)
   }
   usbx_log_printf("[USBX] ux_host_stack_hcd_register OK (pData set)\r\n");
 
-  /* ============================================================
-   * 关键修复：现在才使能 OTG FS 中断！
-   * hhcd->pData 已经被 ux_host_stack_hcd_register 设置好了，
-   * HAL_HCD_Connect_Callback 不会再因为 NULL 指针而崩溃。
-   * ============================================================ */
-  HAL_NVIC_EnableIRQ(OTG_FS_IRQn);
-  usbx_log_printf("[USBX] OTG_FS IRQ enabled\r\n");
+  /* Create mouse event flags and thread */
+  status = tx_event_flags_create(&mouse_event_flags, "mouse_events");
+  if (status != TX_SUCCESS)
+  {
+    usbx_log_printf("[USBX] mouse event flags create failed: 0x%02X\r\n", status);
+    return UX_ERROR;
+  }
 
-  /* 启动 USB Host 控制器 — 驱动 VBUS，激活连接检测 */
+  status = tx_thread_create(&mouse_thread, "mouse_thread",
+                            hid_mouse_thread_entry, 0,
+                            mouse_thread_stack, MOUSE_THREAD_STACK_SIZE,
+                            25, 25,
+                            TX_NO_TIME_SLICE, TX_AUTO_START);
+  if (status != TX_SUCCESS)
+  {
+    usbx_log_printf("[USBX] mouse thread create failed: 0x%02X\r\n", status);
+    return UX_ERROR;
+  }
+  usbx_log_printf("[USBX] Mouse thread created\r\n");
+
+  /* ============================================================
+   * 启动 USB Host 控制器 — 驱动 VBUS，激活连接检测。
+   * 注意：必须在 HAL_NVIC_EnableIRQ 之前调用，这样当设备
+   * 在上电前就已插好时，VBUS 供电可以先稳定，设备有充足的
+   * 时间完成上电初始化（USB 规范要求至少 100ms）。
+   * ============================================================ */
   if (HAL_HCD_Start(&hhcd_USB_OTG_FS) != HAL_OK)
   {
     usbx_log_printf("[USBX] HAL_HCD_Start failed\r\n");
     return UX_ERROR;
   }
+  usbx_log_printf("[USBX] HAL_HCD_Start OK, VBUS driven\r\n");
+
+  /* ============================================================
+   * 关键：等待 200ms 让预插入的设备完成上电稳定。
+   * 使用忙等循环，因为此时 ThreadX 调度器尚未启动，
+   * 不能使用 tx_thread_sleep。
+   * STM32F407 主频 168MHz，约 5 个周期/循环。
+   * 200ms ≈ 168000000 * 0.2 / 5 ≈ 6720000 次。
+   * ============================================================ */
+  {
+    volatile uint32_t wait;
+    for (wait = 0; wait < 7000000UL; wait++)
+    {
+      __NOP();
+    }
+  }
+  usbx_log_printf("[USBX] Attach debounce wait done\r\n");
+
+  /* ============================================================
+   * 现在才使能 OTG FS 中断！
+   * hhcd->pData 已经被 ux_host_stack_hcd_register 设置好了，
+   * VBUS 已稳定，预插入的设备已完成上电初始化，
+   * 此时使能中断后的连接检测和枚举将正常进行。
+   * ============================================================ */
+  HAL_NVIC_EnableIRQ(OTG_FS_IRQn);
+  usbx_log_printf("[USBX] OTG_FS IRQ enabled\r\n");
 
   usbx_log_printf("\r\n[USBX] pool free: %lu / %lu bytes\r\n",
                   _ux_system->ux_system_regular_memory_pool_free,
@@ -490,6 +541,31 @@ static UINT usbx_host_change_callback(ULONG event, UX_HOST_CLASS *host_class, VO
       if (host_class != UX_NULL)
       {
         usbx_log_printf("[USBX] class activated: %s\r\n", host_class->ux_host_class_name);
+
+        /* Check if this is a HID class with a mouse client */
+        if (host_class->ux_host_class_entry_function == ux_host_class_hid_entry)
+        {
+          UX_HOST_CLASS_HID *hid = (UX_HOST_CLASS_HID *)instance;
+
+          /* Print configured device info at INSERTION time (descriptor is valid now) */
+          if (hid != UX_NULL && hid->ux_host_class_hid_interface != UX_NULL)
+          {
+            UX_DEVICE *dev = hid->ux_host_class_hid_interface
+                                 ->ux_interface_configuration
+                                 ->ux_configuration_device;
+            usbx_log_device_info(dev);
+          }
+
+          if (hid != UX_NULL && hid->ux_host_class_hid_client != UX_NULL)
+          {
+            if (hid->ux_host_class_hid_client->ux_host_class_hid_client_handler == ux_host_class_hid_mouse_entry)
+            {
+              hid_mouse_instance = (UX_HOST_CLASS_HID_MOUSE *)hid->ux_host_class_hid_client->ux_host_class_hid_client_local_instance;
+              usbx_log_printf("[USBX] HID Mouse instance captured\r\n");
+              tx_event_flags_set(&mouse_event_flags, MOUSE_FLAG_CONNECTED, TX_OR);
+            }
+          }
+        }
       }
       else
       {
@@ -501,6 +577,21 @@ static UINT usbx_host_change_callback(ULONG event, UX_HOST_CLASS *host_class, VO
       if (host_class != UX_NULL)
       {
         usbx_log_printf("[USBX] class removed: %s\r\n", host_class->ux_host_class_name);
+
+        /* Check if the removed class is a HID mouse */
+        if (host_class->ux_host_class_entry_function == ux_host_class_hid_entry)
+        {
+          UX_HOST_CLASS_HID *hid = (UX_HOST_CLASS_HID *)instance;
+          if (hid != UX_NULL && hid->ux_host_class_hid_client != UX_NULL)
+          {
+            if (hid->ux_host_class_hid_client->ux_host_class_hid_client_handler == ux_host_class_hid_mouse_entry)
+            {
+              hid_mouse_instance = UX_NULL;
+              usbx_log_printf("[USBX] HID Mouse instance cleared\r\n");
+              tx_event_flags_set(&mouse_event_flags, MOUSE_FLAG_DISCONNECTED, TX_OR);
+            }
+          }
+        }
       }
       else
       {

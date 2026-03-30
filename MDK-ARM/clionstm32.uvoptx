@@ -152,9 +152,9 @@
         <Bp>
           <Number>0</Number>
           <Type>0</Type>
-          <LineNumber>82</LineNumber>
+          <LineNumber>176</LineNumber>
           <EnabledFlag>1</EnabledFlag>
-          <Address>134240112</Address>
+          <Address>134240472</Address>
           <ByteObject>0</ByteObject>
           <HtxType>0</HtxType>
           <ManyObjects>0</ManyObjects>
@@ -163,14 +163,30 @@
           <BreakIfRCount>1</BreakIfRCount>
           <Filename>../USBX/App/app_usbx_host.c</Filename>
           <ExecCommand></ExecCommand>
-          <Expression>\\clionstm32\../USBX/App/app_usbx_host.c\82</Expression>
+          <Expression>\\clionstm32\../USBX/App/app_usbx_host.c\176</Expression>
         </Bp>
         <Bp>
           <Number>1</Number>
           <Type>0</Type>
+          <LineNumber>105</LineNumber>
+          <EnabledFlag>1</EnabledFlag>
+          <Address>134312274</Address>
+          <ByteObject>0</ByteObject>
+          <HtxType>0</HtxType>
+          <ManyObjects>0</ManyObjects>
+          <SizeOfObject>0</SizeOfObject>
+          <BreakByAccess>0</BreakByAccess>
+          <BreakIfRCount>1</BreakIfRCount>
+          <Filename>../USBX/App/ux_host_mouse.c</Filename>
+          <ExecCommand></ExecCommand>
+          <Expression>\\clionstm32\../USBX/App/ux_host_mouse.c\105</Expression>
+        </Bp>
+        <Bp>
+          <Number>2</Number>
+          <Type>0</Type>
           <LineNumber>80</LineNumber>
           <EnabledFlag>1</EnabledFlag>
-          <Address>134304448</Address>
+          <Address>134312808</Address>
           <ByteObject>0</ByteObject>
           <HtxType>0</HtxType>
           <ManyObjects>0</ManyObjects>
@@ -182,11 +198,11 @@
           <Expression>\\clionstm32\../Core/Src/main.c\80</Expression>
         </Bp>
         <Bp>
-          <Number>2</Number>
+          <Number>3</Number>
           <Type>0</Type>
           <LineNumber>91</LineNumber>
           <EnabledFlag>1</EnabledFlag>
-          <Address>134240122</Address>
+          <Address>134239968</Address>
           <ByteObject>0</ByteObject>
           <HtxType>0</HtxType>
           <ManyObjects>0</ManyObjects>
@@ -196,22 +212,6 @@
           <Filename>../USBX/App/app_usbx_host.c</Filename>
           <ExecCommand></ExecCommand>
           <Expression>\\clionstm32\../USBX/App/app_usbx_host.c\91</Expression>
-        </Bp>
-        <Bp>
-          <Number>3</Number>
-          <Type>0</Type>
-          <LineNumber>399</LineNumber>
-          <EnabledFlag>1</EnabledFlag>
-          <Address>134305546</Address>
-          <ByteObject>0</ByteObject>
-          <HtxType>0</HtxType>
-          <ManyObjects>0</ManyObjects>
-          <SizeOfObject>0</SizeOfObject>
-          <BreakByAccess>0</BreakByAccess>
-          <BreakIfRCount>1</BreakIfRCount>
-          <Filename>../USBX/App/app_usbx_host.c</Filename>
-          <ExecCommand></ExecCommand>
-          <Expression>\\clionstm32\../USBX/App/app_usbx_host.c\399</Expression>
         </Bp>
       </Breakpoint>
       <Tracepoint>
@@ -464,7 +464,7 @@
 
   <Group>
     <GroupName>Application/User/AZURE_RTOS/App</GroupName>
-    <tvExp>0</tvExp>
+    <tvExp>1</tvExp>
     <tvExpOptDlg>0</tvExpOptDlg>
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>
