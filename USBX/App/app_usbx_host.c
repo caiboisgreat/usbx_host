@@ -66,6 +66,13 @@ TX_EVENT_FLAGS_GROUP      mouse_event_flags;
 static TX_THREAD          mouse_thread;
 #define MOUSE_THREAD_STACK_SIZE  1024U
 static UCHAR              mouse_thread_stack[MOUSE_THREAD_STACK_SIZE];
+
+UX_HOST_CLASS_HID_KEYBOARD *hid_keyboard_instance = UX_NULL;
+TX_EVENT_FLAGS_GROUP        keyboard_event_flags;
+
+static TX_THREAD            keyboard_thread;
+#define KEYBOARD_THREAD_STACK_SIZE  1024U
+static UCHAR                keyboard_thread_stack[KEYBOARD_THREAD_STACK_SIZE];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -81,6 +88,7 @@ static const char *usbx_speed_to_string(ULONG speed);
 static UINT usbx_get_device_string(UX_DEVICE *device, ULONG string_index, char *buffer, size_t buffer_size);
 static VOID usbx_diag_record_change_event(ULONG event);
 extern void hid_mouse_thread_entry(ULONG arg);
+extern void hid_keyboard_thread_entry(ULONG arg);
 /* USER CODE END PFP */
 /**
   * @brief  Application USBX Host Initialization.
@@ -184,6 +192,26 @@ UINT MX_USBX_Host_Init(VOID *memory_ptr)
     return UX_ERROR;
   }
   usbx_log_printf("[USBX] Mouse thread created\r\n");
+
+  /* Create keyboard event flags and thread */
+  status = tx_event_flags_create(&keyboard_event_flags, "keyboard_events");
+  if (status != TX_SUCCESS)
+  {
+    usbx_log_printf("[USBX] keyboard event flags create failed: 0x%02X\r\n", status);
+    return UX_ERROR;
+  }
+
+  status = tx_thread_create(&keyboard_thread, "keyboard_thread",
+                            hid_keyboard_thread_entry, 0,
+                            keyboard_thread_stack, KEYBOARD_THREAD_STACK_SIZE,
+                            20, 20,
+                            TX_NO_TIME_SLICE, TX_AUTO_START);
+  if (status != TX_SUCCESS)
+  {
+    usbx_log_printf("[USBX] keyboard thread create failed: 0x%02X\r\n", status);
+    return UX_ERROR;
+  }
+  usbx_log_printf("[USBX] Keyboard thread created\r\n");
 
   /* ============================================================
    * 启动 USB Host 控制器 — 驱动 VBUS，激活连接检测。
@@ -564,6 +592,12 @@ static UINT usbx_host_change_callback(ULONG event, UX_HOST_CLASS *host_class, VO
               usbx_log_printf("[USBX] HID Mouse instance captured\r\n");
               tx_event_flags_set(&mouse_event_flags, MOUSE_FLAG_CONNECTED, TX_OR);
             }
+            else if (hid->ux_host_class_hid_client->ux_host_class_hid_client_handler == ux_host_class_hid_keyboard_entry)
+            {
+              hid_keyboard_instance = (UX_HOST_CLASS_HID_KEYBOARD *)hid->ux_host_class_hid_client->ux_host_class_hid_client_local_instance;
+              usbx_log_printf("[USBX] HID Keyboard instance captured\r\n");
+              tx_event_flags_set(&keyboard_event_flags, KEYBOARD_FLAG_CONNECTED, TX_OR);
+            }
           }
         }
       }
@@ -589,6 +623,12 @@ static UINT usbx_host_change_callback(ULONG event, UX_HOST_CLASS *host_class, VO
               hid_mouse_instance = UX_NULL;
               usbx_log_printf("[USBX] HID Mouse instance cleared\r\n");
               tx_event_flags_set(&mouse_event_flags, MOUSE_FLAG_DISCONNECTED, TX_OR);
+            }
+            else if (hid->ux_host_class_hid_client->ux_host_class_hid_client_handler == ux_host_class_hid_keyboard_entry)
+            {
+              hid_keyboard_instance = UX_NULL;
+              usbx_log_printf("[USBX] HID Keyboard instance cleared\r\n");
+              tx_event_flags_set(&keyboard_event_flags, KEYBOARD_FLAG_DISCONNECTED, TX_OR);
             }
           }
         }

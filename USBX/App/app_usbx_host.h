@@ -74,8 +74,10 @@ VOID APP_USBX_Diag_PrintSnapshot(VOID);
 
 /* Private defines -----------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define MOUSE_FLAG_CONNECTED     (1UL << 0)
-#define MOUSE_FLAG_DISCONNECTED  (1UL << 1)
+#define MOUSE_FLAG_CONNECTED        (1UL << 0)
+#define MOUSE_FLAG_DISCONNECTED     (1UL << 1)
+#define KEYBOARD_FLAG_CONNECTED     (1UL << 0)
+#define KEYBOARD_FLAG_DISCONNECTED  (1UL << 1)
 /* USER CODE END PD */
 
 /* USER CODE BEGIN 1 */
