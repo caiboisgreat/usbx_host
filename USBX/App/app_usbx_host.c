@@ -176,7 +176,7 @@ UINT MX_USBX_Host_Init(VOID *memory_ptr)
   status = tx_thread_create(&mouse_thread, "mouse_thread",
                             hid_mouse_thread_entry, 0,
                             mouse_thread_stack, MOUSE_THREAD_STACK_SIZE,
-                            25, 25,
+                            20, 20,
                             TX_NO_TIME_SLICE, TX_AUTO_START);
   if (status != TX_SUCCESS)
   {
