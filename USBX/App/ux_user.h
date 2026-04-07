@@ -118,7 +118,7 @@
 /* Defined, this value represents the maximum number of SCSI logical units represented in the
    host storage class driver.  */
 
-/* #define UX_MAX_HOST_LUN  1 */
+#define UX_MAX_HOST_LUN  4
 
 /* Defined, this value represents the maximum number of bytes received on a control endpoint in
    the device stack. The default is 256 bytes but can be reduced in memory constraint environments.  */
@@ -200,7 +200,7 @@
 /* Defined, this value represents the maximum number of media for the host storage class.
    Default is 8 but for memory constrained resource systems this can ne reduced to 1. */
 
-/* #define UX_HOST_CLASS_STORAGE_MAX_MEDIA                                           2 */
+#define UX_HOST_CLASS_STORAGE_MAX_MEDIA                                           4
 
 /* Defined, this value includes code to handle storage devices that use the CB
    or CBI protocol (such as floppy disks). It is off by default because these

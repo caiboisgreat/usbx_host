@@ -73,6 +73,12 @@ TX_EVENT_FLAGS_GROUP        keyboard_event_flags;
 static TX_THREAD            keyboard_thread;
 #define KEYBOARD_THREAD_STACK_SIZE  1024U
 static UCHAR                keyboard_thread_stack[KEYBOARD_THREAD_STACK_SIZE];
+
+UX_HOST_CLASS_STORAGE       *msc_storage_instance = UX_NULL;
+TX_EVENT_FLAGS_GROUP        msc_event_flags;
+static TX_THREAD            msc_thread;
+#define MSC_THREAD_STACK_SIZE   4096U
+static UCHAR                msc_thread_stack[MSC_THREAD_STACK_SIZE];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -89,6 +95,7 @@ static UINT usbx_get_device_string(UX_DEVICE *device, ULONG string_index, char *
 static VOID usbx_diag_record_change_event(ULONG event);
 extern void hid_mouse_thread_entry(ULONG arg);
 extern void hid_keyboard_thread_entry(ULONG arg);
+extern void msc_process_thread_entry(ULONG arg);
 /* USER CODE END PFP */
 /**
   * @brief  Application USBX Host Initialization.
@@ -212,6 +219,26 @@ UINT MX_USBX_Host_Init(VOID *memory_ptr)
     return UX_ERROR;
   }
   usbx_log_printf("[USBX] Keyboard thread created\r\n");
+
+  /* Create MSC event flags and thread */
+  status = tx_event_flags_create(&msc_event_flags, "msc_events");
+  if (status != TX_SUCCESS)
+  {
+    usbx_log_printf("[USBX] msc event flags create failed: 0x%02X\r\n", status);
+    return UX_ERROR;
+  }
+
+  status = tx_thread_create(&msc_thread, "msc_thread",
+                            msc_process_thread_entry, 0,
+                            msc_thread_stack, MSC_THREAD_STACK_SIZE,
+                            20, 20,
+                            TX_NO_TIME_SLICE, TX_AUTO_START);
+  if (status != TX_SUCCESS)
+  {
+    usbx_log_printf("[USBX] msc thread create failed: 0x%02X\r\n", status);
+    return UX_ERROR;
+  }
+  usbx_log_printf("[USBX] MSC thread created\r\n");
 
   /* ============================================================
    * 启动 USB Host 控制器 — 驱动 VBUS，激活连接检测。
@@ -600,6 +627,12 @@ static UINT usbx_host_change_callback(ULONG event, UX_HOST_CLASS *host_class, VO
             }
           }
         }
+        else if (host_class->ux_host_class_entry_function == ux_host_class_storage_entry)
+        {
+          msc_storage_instance = (UX_HOST_CLASS_STORAGE *)instance;
+          usbx_log_printf("[USBX] MSC Storage instance captured\r\n");
+          tx_event_flags_set(&msc_event_flags, MSC_FLAG_CONNECTED, TX_OR);
+        }
       }
       else
       {
@@ -631,6 +664,12 @@ static UINT usbx_host_change_callback(ULONG event, UX_HOST_CLASS *host_class, VO
               tx_event_flags_set(&keyboard_event_flags, KEYBOARD_FLAG_DISCONNECTED, TX_OR);
             }
           }
+        }
+        else if (host_class->ux_host_class_entry_function == ux_host_class_storage_entry)
+        {
+          msc_storage_instance = UX_NULL;
+          usbx_log_printf("[USBX] MSC Storage instance cleared\r\n");
+          tx_event_flags_set(&msc_event_flags, MSC_FLAG_DISCONNECTED, TX_OR);
         }
       }
       else

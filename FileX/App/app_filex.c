@@ -66,7 +66,7 @@ UINT MX_FileX_Init(VOID *memory_ptr)
   /* USER CODE END MX_FileX_MEM_POOL */
 
   /* USER CODE BEGIN MX_FileX_Init */
-
+  fx_system_initialize();
   /* USER CODE END MX_FileX_Init */
   return ret;
 }
